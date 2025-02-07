@@ -1,2 +1,2 @@
 # Practica06-220859
-Implementación de la Persistencia de los datos de sesión en una Base de Datos NoRelacional. 
+Agregar la funcionalidad de persistencia de los datos de sesión en una base de datos usando MongoDB y MongoAtlas, adecuando algunos cambios necesarios.. 
