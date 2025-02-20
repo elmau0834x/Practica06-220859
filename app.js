@@ -84,6 +84,7 @@ app.post("/login", (req, res) => {
     const now = new Date();
     const horaMexico = moment(now).tz("America/Mexico_City").format("YYYY-MM-DD HH:mm:ss")
     const ipClient = getClientIP(req)
+    console.log(horaMexico)
 
     sessions[sessionId] = {
         sessionId,
@@ -101,6 +102,11 @@ app.post("/login", (req, res) => {
             macAddress:serverInfo.serverMac
         },
         inactivityTime:{
+            hours:0,
+            minutes:0,
+            seconds:0
+        },
+        duration:{
             hours:0,
             minutes:0,
             seconds:0
@@ -137,8 +143,10 @@ app.post("/logout", (req, res) => {
             return res.status(500).send("Error al cerrar la sesión");
         }
     });
-
-
+    estado = {
+        status:'Inactiva'
+    }
+    registroDao.findOneAndUpdate()
     res.status(200).json({
         message: "Logout successful",
     });
@@ -154,12 +162,21 @@ app.put("/update", async (req, res) => {
     // Obtener la hora actual en Ciudad de México
     const now = moment().tz("America/Mexico_City");
     const lastAccess = moment(sessions[sessionId].lastAccess).tz("America/Mexico_City");
+    const createdAt = moment(sessions[sessionId].createdAt).tz("America/Mexico_City");
 
     // Calcular el tiempo de inactividad en horas, minutos y segundos
-    const inactivityMs = now.diff(lastAccess);
-    const inactivityHours = Math.floor(inactivityMs / (1000 * 60 * 60));
-    const inactivityMinutes = Math.floor((inactivityMs % (1000 * 60 * 60)) / (1000 * 60));
-    const inactivitySeconds = Math.floor((inactivityMs % (1000 * 60)) / 1000);
+    const inactivityDuration = moment.duration(now.diff(lastAccess));
+    const inactivityHours = inactivityDuration.hours();
+    const inactivityMinutes = inactivityDuration.minutes();
+    const inactivitySeconds = inactivityDuration.seconds();
+    console.log(`Inactividad: ${inactivityHours} horas, ${inactivityMinutes} minutos, ${inactivitySeconds} segundos`);
+    
+    // Calcular la duracion en horas, minutos y segundos
+    const duration = moment.duration(now.diff(createdAt));
+    const durationHours = duration.hours();
+    const durationMinutes = duration.minutes();
+    const durationSeconds = duration.seconds();
+    console.log(`Duration: ${durationHours} horas, ${durationMinutes} minutos, ${durationSeconds} segundos`);
 
     // Actualizar datos de la sesión
     if (email) sessions[sessionId].email = email;
@@ -170,16 +187,23 @@ app.put("/update", async (req, res) => {
         minutes: inactivityMinutes,
         seconds: inactivitySeconds
     };
+    sessions[sessionId].duration = {
+        hours: durationHours,
+        minutes: durationMinutes,
+        seconds: durationSeconds
+    };
 
     const dataUpdated = {
         nickname: sessions[sessionId].nickname,
         email: sessions[sessionId].email,
         lastAccess: sessions[sessionId].lastAccess,
-        inactivityTime: sessions[sessionId].inactivityTime
+        inactivityTime: sessions[sessionId].inactivityTime,
+        duration: sessions[sessionId].duration
     };
 
     try {
         const registro = await registroDao.findOneAndUpdate(sessionId, dataUpdated);
+        const dato = await registroDao.findOne(sessionId)
 
 
         if (!registro) {
@@ -188,7 +212,7 @@ app.put("/update", async (req, res) => {
 
         res.status(200).json({
             message: "Datos actualizados correctamente",
-            data: registro
+            data: dato
         });
     } catch (error) {
         res.status(500).json({ error: error.message || "Error en la actualización" });
@@ -207,12 +231,31 @@ app.get("/status", (req, res) => {
     const now = new Date();
     const horaMexico = moment(now).tz("America/Mexico_City").format("YYYY-MM-DD HH:mm:ss");
 
-    const duration = new Date(horaMexico) - new Date(sessions[sessionId].dateCreated);
-    const inactivity = new Date(horaMexico) - new Date(sessions[sessionId].lastAccessed);
+    // Calcular el tiempo de inactividad en horas, minutos y segundos
+    const inactivityDuration = moment.duration(now.diff(lastAccess));
+    const inactivityHours = inactivityDuration.hours();
+    const inactivityMinutes = inactivityDuration.minutes();
+    const inactivitySeconds = inactivityDuration.seconds();
+    console.log(`Inactividad: ${inactivityHours} horas, ${inactivityMinutes} minutos, ${inactivitySeconds} segundos`);
+    
+    // Calcular la duracion en horas, minutos y segundos
+    const duration = moment.duration(now.diff(createdAt));
+    const durationHours = duration.hours();
+    const durationMinutes = duration.minutes();
+    const durationSeconds = duration.seconds();
+    console.log(`Duration: ${durationHours} horas, ${durationMinutes} minutos, ${durationSeconds} segundos`);
 
     sessions[sessionId].lastAccessed = horaMexico;
-    sessions[sessionId].duration = duration;
-    sessions[sessionId].inactivityTime = inactivity;
+    sessions[sessionId].inactivityTime = {
+        hours: inactivityHours,
+        minutes: inactivityMinutes,
+        seconds: inactivitySeconds
+    };
+    sessions[sessionId].duration = {
+        hours: durationHours,
+        minutes: durationMinutes,
+        seconds: durationSeconds
+    };
 
     res.status(200).json({
         message: "Sesión activa",
@@ -221,23 +264,42 @@ app.get("/status", (req, res) => {
 });
 
 
-app.get("/statusAllActives", (req, res) => {
-    if (!sessions || Object.keys(sessions).length === 0) {
-        return res.status(404).json({
-            message: "No hay sesiones activas"
-        });
-    }
-
-    const activeSessions = Object.entries(sessions).map(([sessionId, sessionData]) => ({
-        sessionId,
-        sessionData
-    }));
-
-    res.status(200).json({
-        message: "Listado de sesiones activas",
-        activeSessions
-    });
+app.get("/statusAll", (req, res) => {
+    registroDao.findAll()
+    .then((data) =>{
+        res.json({
+            data:{
+                data:data
+            }
+        })
+    })
+    .catch((error) =>{
+        res.json({
+            data:{
+                error:error
+            }
+        })
+    })
 });
+
+app.get("/deleteAllSessions", (req, res) =>{
+    registroDao.deleteAll()
+    .then((data) =>{
+        res.json({
+            data:{
+                message:"Todos los datos eliminados",
+                data:data
+            }
+        })
+    })
+    .catch((error)=>{
+        res.json({
+            data:{
+                error:error
+            }
+        })
+    })
+})
 
 connectBD();
 app.listen(port, () => {

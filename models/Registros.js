@@ -65,6 +65,25 @@ const registrosSchema = new Schema({
             min: 0,
             max: 59
         }
+    },
+    duration: {
+        hours:{
+            type:Number,
+            required:true,
+            min: 0
+        },
+        minutes:{
+            type:Number,
+            required:true,
+            min: 0,
+            max: 59
+        },
+        seconds:{
+            type:Number,
+            required:true,
+            min: 0,
+            max: 59
+        }
     }
 },{
     versionKey:false,
